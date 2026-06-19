@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: blind-watermark-web:latest
+    container_name: blind-watermark-web
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-2}"

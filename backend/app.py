@@ -4,7 +4,8 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from blind_watermark import WaterMark
 
@@ -18,6 +19,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = BASE_DIR / "static"
+ASSETS_DIR = FRONTEND_DIST / "assets"
+
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
 @app.get("/api/health")
@@ -109,3 +117,25 @@ def safe_name(filename: Optional[str], fallback: str) -> str:
         return fallback
     name = Path(filename).name
     return name or fallback
+
+
+@app.get("/")
+def serve_index():
+    return serve_frontend()
+
+
+@app.get("/{full_path:path}")
+def serve_frontend(full_path: str = ""):
+    index_file = FRONTEND_DIST / "index.html"
+    if not index_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Frontend build not found. Run `npm run build` in the frontend directory first.",
+        )
+    return FileResponse(index_file)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
