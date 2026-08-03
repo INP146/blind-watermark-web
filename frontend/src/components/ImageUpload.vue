@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import type { UploadFileInfo } from 'naive-ui';
 import { NIcon, NUpload, NUploadDragger } from 'naive-ui';
 import { CloudUploadOutline } from '@vicons/ionicons5';
@@ -45,11 +45,19 @@ const previewUrl = ref('');
 watch(
   () => props.file,
   (file) => {
-    if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+    revokePreviewUrl();
     previewUrl.value = file ? URL.createObjectURL(file) : '';
   },
   { immediate: true }
 );
+
+onBeforeUnmount(revokePreviewUrl);
+
+function revokePreviewUrl() {
+  if (!previewUrl.value) return;
+  URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = '';
+}
 
 function handleChange(options: { fileList: UploadFileInfo[] }) {
   const selected = options.fileList.at(-1)?.file ?? null;

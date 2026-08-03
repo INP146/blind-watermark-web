@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import type { GlobalThemeOverrides, SelectOption } from 'naive-ui';
 import {
   createDiscreteApi,
@@ -253,6 +253,11 @@ onMounted(async () => {
   apiOnline.value = await checkApiHealth();
 });
 
+onBeforeUnmount(() => {
+  revokeObjectUrl(embedResultUrl);
+  revokeObjectUrl(extractResultUrl);
+});
+
 watch(
   () => embedForm.image,
   async (file) => {
@@ -312,8 +317,14 @@ async function handleExtract() {
 }
 
 function replaceObjectUrl(target: typeof embedResultUrl, blob: Blob) {
-  if (target.value) URL.revokeObjectURL(target.value);
+  revokeObjectUrl(target);
   target.value = URL.createObjectURL(blob);
+}
+
+function revokeObjectUrl(target: typeof embedResultUrl) {
+  if (!target.value) return;
+  URL.revokeObjectURL(target.value);
+  target.value = '';
 }
 
 function normalizeError(error: unknown) {
