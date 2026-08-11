@@ -48,7 +48,7 @@ pip install blind-watermark
 ```
 
 For the current developer version:
-```bach
+```bash
 git clone git@github.com:guofei9987/blind_watermark.git
 cd blind_watermark
 pip install .
