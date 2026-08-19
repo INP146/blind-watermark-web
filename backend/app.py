@@ -115,7 +115,8 @@ async def save_upload(upload: UploadFile, path: Path) -> None:
 def safe_name(filename: Optional[str], fallback: str) -> str:
     if not filename:
         return fallback
-    name = Path(filename).name
+    # Browsers may submit Windows-style paths even when the server runs on POSIX.
+    name = Path(filename.replace("\\", "/")).name
     return name or fallback
 
 
