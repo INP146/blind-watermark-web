@@ -117,7 +117,7 @@ def safe_name(filename: Optional[str], fallback: str) -> str:
         return fallback
     # Browsers may submit Windows-style paths even when the server runs on POSIX.
     name = Path(filename.replace("\\", "/")).name
-    return name or fallback
+    return fallback if name in {"", ".", ".."} else name
 
 
 @app.get("/")

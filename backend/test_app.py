@@ -11,3 +11,6 @@ def test_safe_name_uses_fallback_for_missing_or_directory_only_names():
     assert safe_name("", "fallback.png") == "fallback.png"
     assert safe_name("/", "fallback.png") == "fallback.png"
     assert safe_name("\\", "fallback.png") == "fallback.png"
+    assert safe_name(".", "fallback.png") == "fallback.png"
+    assert safe_name("..", "fallback.png") == "fallback.png"
+    assert safe_name("../", "fallback.png") == "fallback.png"
