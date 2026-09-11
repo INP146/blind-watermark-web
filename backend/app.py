@@ -48,8 +48,8 @@ async def embed(
     suffix = ".jpg" if output_format in {"jpg", "jpeg"} else ".png"
     with TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
-        image_path = tmp / safe_name(image.filename, "image.png")
-        watermark_path = tmp / safe_name(watermark.filename, "watermark.png")
+        image_path = upload_path(tmp, image.filename, "image.png", "source")
+        watermark_path = upload_path(tmp, watermark.filename, "watermark.png", "watermark")
         output_path = tmp / f"embedded{suffix}"
 
         await save_upload(image, image_path)
@@ -83,7 +83,7 @@ async def extract(
 
     with TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
-        image_path = tmp / safe_name(image.filename, "embedded.png")
+        image_path = upload_path(tmp, image.filename, "embedded.png", "source")
         output_path = tmp / "extracted-watermark.png"
 
         await save_upload(image, image_path)
@@ -118,6 +118,11 @@ def safe_name(filename: Optional[str], fallback: str) -> str:
     # Browsers may submit Windows-style paths even when the server runs on POSIX.
     name = Path(filename.replace("\\", "/")).name
     return fallback if name in {"", ".", ".."} else name
+
+
+def upload_path(directory: Path, filename: Optional[str], fallback: str, role: str) -> Path:
+    """Keep uploads separate even when clients send identical filenames."""
+    return directory / f"{role}-{safe_name(filename, fallback)}"
 
 
 @app.get("/")
