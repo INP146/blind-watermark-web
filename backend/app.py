@@ -41,7 +41,7 @@ async def embed(
     password_wm: int = Form(1),
     output_format: str = Form("png"),
 ):
-    output_format = output_format.lower()
+    output_format = output_format.strip().lower()
     if output_format not in {"png", "jpg", "jpeg"}:
         raise HTTPException(status_code=400, detail="output_format must be png or jpg")
 
