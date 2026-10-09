@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import app, safe_name, upload_path
@@ -29,6 +30,25 @@ def test_upload_path_keeps_same_named_inputs_separate():
     assert image_path == directory / "source-photo.png"
     assert watermark_path == directory / "watermark-photo.png"
     assert image_path != watermark_path
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
+    [(0, 1), (1, 0), (-1, 1), (1, -1), (0, 0)],
+)
+def test_extract_rejects_non_positive_dimensions_before_processing(monkeypatch, width, height):
+    def unexpected_watermark_processing(**_kwargs):
+        pytest.fail("Invalid dimensions must be rejected before watermark processing")
+
+    monkeypatch.setattr("app.WaterMark", unexpected_watermark_processing)
+    response = TestClient(app).post(
+        "/api/extract",
+        files={"image": ("embedded.png", b"image", "image/png")},
+        data={"wm_width": width, "wm_height": height},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "wm_width and wm_height must be positive"}
 
 
 def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
