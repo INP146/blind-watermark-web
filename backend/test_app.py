@@ -51,6 +51,49 @@ def test_extract_rejects_non_positive_dimensions_before_processing(monkeypatch, 
     assert response.json() == {"detail": "wm_width and wm_height must be positive"}
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "files", "data", "empty_filename"),
+    [
+        (
+            "/api/embed",
+            {
+                "image": ("source.png", b"", "image/png"),
+                "watermark": ("watermark.png", b"watermark", "image/png"),
+            },
+            {},
+            "source.png",
+        ),
+        (
+            "/api/embed",
+            {
+                "image": ("source.png", b"source", "image/png"),
+                "watermark": ("watermark.png", b"", "image/png"),
+            },
+            {},
+            "watermark.png",
+        ),
+        (
+            "/api/extract",
+            {"image": ("embedded.png", b"", "image/png")},
+            {"wm_width": 1, "wm_height": 1},
+            "embedded.png",
+        ),
+    ],
+    ids=["empty-source", "empty-watermark", "empty-extraction-image"],
+)
+def test_empty_uploads_are_rejected_before_processing(
+    monkeypatch, endpoint, files, data, empty_filename
+):
+    def unexpected_watermark_processing(**_kwargs):
+        pytest.fail("Empty uploads must be rejected before watermark processing")
+
+    monkeypatch.setattr("app.WaterMark", unexpected_watermark_processing)
+    response = TestClient(app).post(endpoint, files=files, data=data)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": f"{empty_filename} is empty"}
+
+
 def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
     class StubWaterMark:
         def __init__(self, **_kwargs):
