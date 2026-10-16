@@ -94,6 +94,38 @@ def test_empty_uploads_are_rejected_before_processing(
     assert response.json() == {"detail": f"{empty_filename} is empty"}
 
 
+@pytest.mark.parametrize(("width", "height"), [(3, 5), (5, 3)])
+def test_extract_preserves_rectangular_watermark_dimensions(monkeypatch, width, height):
+    class StubWaterMark:
+        def __init__(self, *, password_wm, password_img):
+            assert password_wm == 7
+            assert password_img == 11
+
+        def extract(self, *, filename, wm_shape, out_wm_name):
+            assert Path(filename).read_bytes() == b"embedded-image"
+            assert wm_shape == (height, width)
+            Path(out_wm_name).write_bytes(b"extracted-watermark")
+
+    monkeypatch.setattr("app.WaterMark", StubWaterMark)
+    response = TestClient(app).post(
+        "/api/extract",
+        files={"image": ("embedded.png", b"embedded-image", "image/png")},
+        data={
+            "wm_width": str(width),
+            "wm_height": str(height),
+            "password_wm": "7",
+            "password_img": "11",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="extracted-watermark.png"'
+    )
+    assert response.content == b"extracted-watermark"
+
+
 def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
     class StubWaterMark:
         def __init__(self, **_kwargs):
