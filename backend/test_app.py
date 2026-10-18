@@ -126,6 +126,44 @@ def test_extract_preserves_rectangular_watermark_dimensions(monkeypatch, width, 
     assert response.content == b"extracted-watermark"
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "files", "data"),
+    [
+        (
+            "/api/embed",
+            {
+                "image": ("source.png", b"invalid-image", "image/png"),
+                "watermark": ("watermark.png", b"watermark", "image/png"),
+            },
+            {},
+        ),
+        (
+            "/api/extract",
+            {"image": ("embedded.png", b"invalid-image", "image/png")},
+            {"wm_width": 3, "wm_height": 5},
+        ),
+    ],
+    ids=["embed", "extract"],
+)
+def test_watermark_processing_errors_return_bad_request(monkeypatch, endpoint, files, data):
+    class InvalidImageWaterMark:
+        def __init__(self, **_kwargs):
+            pass
+
+        def read_img(self, filename):
+            assert Path(filename).read_bytes() == b"invalid-image"
+            raise ValueError("Unable to decode image")
+
+        def extract(self, *, filename, **_kwargs):
+            self.read_img(filename)
+
+    monkeypatch.setattr("app.WaterMark", InvalidImageWaterMark)
+    response = TestClient(app).post(endpoint, files=files, data=data)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unable to decode image"}
+
+
 def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
     class StubWaterMark:
         def __init__(self, **_kwargs):
