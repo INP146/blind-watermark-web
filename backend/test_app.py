@@ -164,6 +164,25 @@ def test_watermark_processing_errors_return_bad_request(monkeypatch, endpoint, f
     assert response.json() == {"detail": "Unable to decode image"}
 
 
+@pytest.mark.parametrize("output_format", ["gif", "webp", "svg", "   "])
+def test_embed_rejects_unsupported_output_formats_before_processing(monkeypatch, output_format):
+    def unexpected_watermark_processing(**_kwargs):
+        pytest.fail("Unsupported formats must be rejected before watermark processing")
+
+    monkeypatch.setattr("app.WaterMark", unexpected_watermark_processing)
+    response = TestClient(app).post(
+        "/api/embed",
+        files={
+            "image": ("source.png", b"source", "image/png"),
+            "watermark": ("watermark.png", b"watermark", "image/png"),
+        },
+        data={"output_format": output_format},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "output_format must be png or jpg"}
+
+
 def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
     class StubWaterMark:
         def __init__(self, **_kwargs):
