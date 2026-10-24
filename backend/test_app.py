@@ -32,6 +32,43 @@ def test_upload_path_keeps_same_named_inputs_separate():
     assert image_path != watermark_path
 
 
+def test_embed_keeps_same_named_upload_contents_separate(monkeypatch):
+    input_paths = []
+
+    class StubWaterMark:
+        def __init__(self, **_kwargs):
+            pass
+
+        def read_img(self, filename):
+            input_paths.append(Path(filename))
+            assert Path(filename).read_bytes() == b"source-image"
+
+        def read_wm(self, filename):
+            input_paths.append(Path(filename))
+            assert Path(filename).read_bytes() == b"watermark-image"
+
+        def embed(self, output_path):
+            assert input_paths[0] != input_paths[1]
+            assert Path(output_path) not in input_paths
+            Path(output_path).write_bytes(b"embedded-image")
+
+    monkeypatch.setattr("app.WaterMark", StubWaterMark)
+    response = TestClient(app).post(
+        "/api/embed",
+        files={
+            "image": ("embedded.png", b"source-image", "image/png"),
+            "watermark": ("embedded.png", b"watermark-image", "image/png"),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["content-disposition"] == 'attachment; filename="embedded.png"'
+    assert response.content == b"embedded-image"
+    assert len(input_paths) == 2
+    assert all(not path.exists() for path in input_paths)
+
+
 @pytest.mark.parametrize(
     ("width", "height"),
     [(0, 1), (1, 0), (-1, 1), (1, -1), (0, 0)],
