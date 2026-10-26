@@ -6,6 +6,33 @@ from fastapi.testclient import TestClient
 from app import app, safe_name, upload_path
 
 
+@pytest.mark.parametrize("route", ["/", "/workspace/extract"])
+def test_frontend_serves_index_for_root_and_client_routes(monkeypatch, tmp_path, route):
+    index_content = "<!doctype html><html><body>Watermark workspace</body></html>"
+    (tmp_path / "index.html").write_text(index_content, encoding="utf-8")
+    monkeypatch.setattr("app.FRONTEND_DIST", tmp_path)
+
+    response = TestClient(app).get(route)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.text == index_content
+
+
+@pytest.mark.parametrize("route", ["/", "/workspace/extract"])
+def test_frontend_reports_missing_build(monkeypatch, tmp_path, route):
+    monkeypatch.setattr("app.FRONTEND_DIST", tmp_path)
+
+    response = TestClient(app).get(route)
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": (
+            "Frontend build not found. Run `npm run build` in the frontend directory first."
+        )
+    }
+
+
 def test_safe_name_strips_posix_and_windows_directories():
     assert safe_name("/tmp/photo.png", "fallback.png") == "photo.png"
     assert safe_name(r"C:\fakepath\photo.png", "fallback.png") == "photo.png"
