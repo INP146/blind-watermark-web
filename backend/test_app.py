@@ -210,11 +210,14 @@ def test_extract_preserves_rectangular_watermark_dimensions(monkeypatch, width, 
     ids=["embed", "extract"],
 )
 def test_watermark_processing_errors_return_bad_request(monkeypatch, endpoint, files, data):
+    input_paths = []
+
     class InvalidImageWaterMark:
         def __init__(self, **_kwargs):
             pass
 
         def read_img(self, filename):
+            input_paths.append(Path(filename))
             assert Path(filename).read_bytes() == b"invalid-image"
             raise ValueError("Unable to decode image")
 
@@ -226,6 +229,9 @@ def test_watermark_processing_errors_return_bad_request(monkeypatch, endpoint, f
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Unable to decode image"}
+    assert len(input_paths) == 1
+    assert not input_paths[0].exists()
+    assert not input_paths[0].parent.exists()
 
 
 @pytest.mark.parametrize("output_format", ["gif", "webp", "svg", "   "])
