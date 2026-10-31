@@ -253,7 +253,19 @@ def test_embed_rejects_unsupported_output_formats_before_processing(monkeypatch,
     assert response.json() == {"detail": "output_format must be png or jpg"}
 
 
-def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
+@pytest.mark.parametrize(
+    ("output_format", "extension", "media_type"),
+    [
+        ("png", ".png", "image/png"),
+        ("jpg", ".jpg", "image/jpeg"),
+        ("jpeg", ".jpg", "image/jpeg"),
+        (" PNG ", ".png", "image/png"),
+        (" JPEG ", ".jpg", "image/jpeg"),
+    ],
+)
+def test_embed_output_format_matches_file_extension_and_response_headers(
+    monkeypatch, output_format, extension, media_type
+):
     class StubWaterMark:
         def __init__(self, **_kwargs):
             pass
@@ -265,7 +277,8 @@ def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
             pass
 
         def embed(self, output_path):
-            Path(output_path).write_bytes(b"jpeg-output")
+            assert Path(output_path).suffix == extension
+            Path(output_path).write_bytes(b"embedded-output")
 
     monkeypatch.setattr("app.WaterMark", StubWaterMark)
     response = TestClient(app).post(
@@ -274,9 +287,12 @@ def test_embed_accepts_output_format_with_surrounding_whitespace(monkeypatch):
             "image": ("source.png", b"source", "image/png"),
             "watermark": ("watermark.png", b"watermark", "image/png"),
         },
-        data={"output_format": " JPEG "},
+        data={"output_format": output_format},
     )
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "image/jpeg"
-    assert response.content == b"jpeg-output"
+    assert response.headers["content-type"] == media_type
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="embedded{extension}"'
+    )
+    assert response.content == b"embedded-output"
