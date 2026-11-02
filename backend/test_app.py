@@ -116,6 +116,38 @@ def test_extract_rejects_non_positive_dimensions_before_processing(monkeypatch, 
 
 
 @pytest.mark.parametrize(
+    ("data", "invalid_field"),
+    [
+        ({"wm_height": "5"}, "wm_width"),
+        ({"wm_width": "3"}, "wm_height"),
+        ({"wm_width": "abc", "wm_height": "5"}, "wm_width"),
+        ({"wm_width": "3", "wm_height": "abc"}, "wm_height"),
+        ({"wm_width": "1.5", "wm_height": "5"}, "wm_width"),
+        ({"wm_width": "3", "wm_height": "1.5"}, "wm_height"),
+    ],
+    ids=[
+        "missing-width", "missing-height", "non-numeric-width", "non-numeric-height",
+        "fractional-width", "fractional-height",
+    ],
+)
+def test_extract_requires_integer_dimensions_before_processing(monkeypatch, data, invalid_field):
+    def unexpected_watermark_processing(**_kwargs):
+        pytest.fail("Missing or non-integer dimensions must be rejected before processing")
+
+    monkeypatch.setattr("app.WaterMark", unexpected_watermark_processing)
+    response = TestClient(app).post(
+        "/api/extract",
+        files={"image": ("embedded.png", b"image", "image/png")},
+        data=data,
+    )
+
+    assert response.status_code == 422
+    errors = response.json()["detail"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["body", invalid_field]
+
+
+@pytest.mark.parametrize(
     ("endpoint", "files", "data", "empty_filename"),
     [
         (
