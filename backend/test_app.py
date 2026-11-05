@@ -328,3 +328,40 @@ def test_embed_output_format_matches_file_extension_and_response_headers(
         f'attachment; filename="embedded{extension}"'
     )
     assert response.content == b"embedded-output"
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "files", "data", "missing_fields"),
+    [
+        ("/api/embed", {}, {}, {"image", "watermark"}),
+        (
+            "/api/embed",
+            {"image": ("source.png", b"source", "image/png")},
+            {},
+            {"watermark"},
+        ),
+        (
+            "/api/embed",
+            {"watermark": ("watermark.png", b"watermark", "image/png")},
+            {},
+            {"image"},
+        ),
+        ("/api/extract", {}, {"wm_width": 3, "wm_height": 5}, {"image"}),
+    ],
+    ids=["embed-no-files", "embed-no-watermark", "embed-no-image", "extract-no-image"],
+)
+def test_required_uploads_are_validated_before_processing(
+    monkeypatch, endpoint, files, data, missing_fields
+):
+    def unexpected_watermark_processing(**_kwargs):
+        pytest.fail("Missing uploads must be rejected before watermark processing")
+
+    monkeypatch.setattr("app.WaterMark", unexpected_watermark_processing)
+    response = TestClient(app).post(endpoint, files=files, data=data)
+
+    assert response.status_code == 422
+    errors = response.json()["detail"]
+    assert len(errors) == len(missing_fields)
+    assert {tuple(error["loc"]) for error in errors} == {
+        ("body", field) for field in missing_fields
+    }
