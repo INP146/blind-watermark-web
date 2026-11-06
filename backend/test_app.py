@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -94,6 +96,44 @@ def test_embed_keeps_same_named_upload_contents_separate(monkeypatch):
     assert response.content == b"embedded-image"
     assert len(input_paths) == 2
     assert all(not path.exists() for path in input_paths)
+
+
+def test_png_watermark_round_trip_with_real_image_processing():
+    source = np.random.default_rng(0).integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    watermark = np.array([[0, 255, 0], [255, 0, 255]], dtype=np.uint8)
+    source_ok, source_png = cv2.imencode(".png", source)
+    watermark_ok, watermark_png = cv2.imencode(".png", watermark)
+    assert source_ok and watermark_ok
+
+    with TestClient(app) as client:
+        embedded = client.post(
+            "/api/embed",
+            files={
+                "image": ("image.png", source_png.tobytes(), "image/png"),
+                "watermark": ("image.png", watermark_png.tobytes(), "image/png"),
+            },
+            data={"password_img": "11", "password_wm": "7"},
+        )
+        assert embedded.status_code == 200
+        embedded_image = cv2.imdecode(
+            np.frombuffer(embedded.content, dtype=np.uint8), cv2.IMREAD_COLOR
+        )
+        assert embedded_image is not None
+        assert embedded_image.shape == source.shape
+
+        extracted = client.post(
+            "/api/extract",
+            files={"image": ("embedded.png", embedded.content, "image/png")},
+            data={"wm_width": "3", "wm_height": "2", "password_img": "11", "password_wm": "7"},
+        )
+
+    assert extracted.status_code == 200
+    extracted_image = cv2.imdecode(
+        np.frombuffer(extracted.content, dtype=np.uint8), cv2.IMREAD_GRAYSCALE
+    )
+    assert extracted_image is not None
+    assert extracted_image.shape == watermark.shape
+    np.testing.assert_array_equal(extracted_image > 128, watermark > 128)
 
 
 @pytest.mark.parametrize(
