@@ -137,6 +137,38 @@ def test_png_watermark_round_trip_with_real_image_processing():
 
 
 @pytest.mark.parametrize(
+    ("watermark_shape", "expected_status"),
+    [((7, 9), 200), ((8, 8), 400), ((5, 13), 400)],
+    ids=["below-capacity", "at-capacity", "above-capacity"],
+)
+def test_embed_enforces_real_watermark_capacity(watermark_shape, expected_status):
+    # A 64x64 source has 64 transform blocks; watermark bits must be strictly fewer.
+    source = np.random.default_rng(0).integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    watermark = np.full(watermark_shape, 255, dtype=np.uint8)
+    source_ok, source_png = cv2.imencode(".png", source)
+    watermark_ok, watermark_png = cv2.imencode(".png", watermark)
+    assert source_ok and watermark_ok
+
+    response = TestClient(app).post(
+        "/api/embed",
+        files={
+            "image": ("source.png", source_png.tobytes(), "image/png"),
+            "watermark": ("watermark.png", watermark_png.tobytes(), "image/png"),
+        },
+    )
+
+    assert response.status_code == expected_status
+    if expected_status == 200:
+        embedded_image = cv2.imdecode(
+            np.frombuffer(response.content, dtype=np.uint8), cv2.IMREAD_COLOR
+        )
+        assert embedded_image is not None
+        assert embedded_image.shape == source.shape
+    else:
+        assert "溢出" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
     ("width", "height"),
     [(0, 1), (1, 0), (-1, 1), (1, -1), (0, 0)],
 )
