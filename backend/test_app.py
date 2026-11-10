@@ -136,6 +136,34 @@ def test_png_watermark_round_trip_with_real_image_processing():
     np.testing.assert_array_equal(extracted_image > 128, watermark > 128)
 
 
+@pytest.mark.parametrize("output_format", ["jpg", "jpeg"])
+def test_embed_produces_decodable_jpeg_with_real_image_processing(output_format):
+    source = np.random.default_rng(0).integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    watermark = np.array([[0, 255, 0], [255, 0, 255]], dtype=np.uint8)
+    source_ok, source_png = cv2.imencode(".png", source)
+    watermark_ok, watermark_png = cv2.imencode(".png", watermark)
+    assert source_ok and watermark_ok
+
+    response = TestClient(app).post(
+        "/api/embed",
+        files={
+            "image": ("source.png", source_png.tobytes(), "image/png"),
+            "watermark": ("watermark.png", watermark_png.tobytes(), "image/png"),
+        },
+        data={"output_format": output_format},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["content-disposition"] == 'attachment; filename="embedded.jpg"'
+    assert response.content.startswith(b"\xff\xd8\xff")
+    embedded_image = cv2.imdecode(
+        np.frombuffer(response.content, dtype=np.uint8), cv2.IMREAD_COLOR
+    )
+    assert embedded_image is not None
+    assert embedded_image.shape == source.shape
+
+
 @pytest.mark.parametrize(
     ("watermark_shape", "expected_status"),
     [((7, 9), 200), ((8, 8), 400), ((5, 13), 400)],
