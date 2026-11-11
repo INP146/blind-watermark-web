@@ -366,6 +366,32 @@ def test_watermark_processing_errors_return_bad_request(monkeypatch, endpoint, f
     assert not input_paths[0].parent.exists()
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "invalid_field"),
+    [("/api/embed", "image"), ("/api/embed", "watermark"), ("/api/extract", "image")],
+    ids=["invalid-source", "invalid-watermark", "invalid-extraction-image"],
+)
+def test_undecodable_uploads_return_bad_request_with_real_processing(endpoint, invalid_field):
+    source_ok, source_png = cv2.imencode(".png", np.zeros((64, 64, 3), dtype=np.uint8))
+    watermark_ok, watermark_png = cv2.imencode(".png", np.zeros((2, 3), dtype=np.uint8))
+    assert source_ok and watermark_ok
+
+    files = {"image": ("source.png", source_png.tobytes(), "image/png")}
+    data = {}
+    if endpoint == "/api/embed":
+        files["watermark"] = ("watermark.png", watermark_png.tobytes(), "image/png")
+    else:
+        data = {"wm_width": 3, "wm_height": 2}
+    # A PNG filename and content type do not guarantee decodable image bytes.
+    files[invalid_field] = ("corrupt.png", b"not-a-valid-image", "image/png")
+
+    response = TestClient(app).post(endpoint, files=files, data=data)
+
+    assert response.status_code == 400
+    assert isinstance(response.json()["detail"], str)
+    assert response.json()["detail"]
+
+
 @pytest.mark.parametrize("output_format", ["gif", "webp", "svg", "   "])
 def test_embed_rejects_unsupported_output_formats_before_processing(monkeypatch, output_format):
     def unexpected_watermark_processing(**_kwargs):
