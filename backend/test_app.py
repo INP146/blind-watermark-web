@@ -98,8 +98,14 @@ def test_embed_keeps_same_named_upload_contents_separate(monkeypatch):
     assert all(not path.exists() for path in input_paths)
 
 
-def test_png_watermark_round_trip_with_real_image_processing():
-    source = np.random.default_rng(0).integers(0, 256, (64, 64, 3), dtype=np.uint8)
+@pytest.mark.parametrize(
+    "source_shape",
+    [(64, 64, 3), (63, 64, 3), (64, 65, 3), (63, 65, 3)],
+    ids=["even-dimensions", "odd-height", "odd-width", "odd-height-and-width"],
+)
+def test_png_watermark_round_trip_with_real_image_processing(source_shape):
+    # Odd dimensions require padding for the transform, then cropping on output.
+    source = np.random.default_rng(0).integers(0, 256, source_shape, dtype=np.uint8)
     watermark = np.array([[0, 255, 0], [255, 0, 255]], dtype=np.uint8)
     source_ok, source_png = cv2.imencode(".png", source)
     watermark_ok, watermark_png = cv2.imencode(".png", watermark)
