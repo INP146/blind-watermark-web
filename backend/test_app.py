@@ -204,6 +204,27 @@ def test_embed_enforces_real_watermark_capacity(watermark_shape, expected_status
 
 @pytest.mark.parametrize(
     ("width", "height"),
+    [(8, 8), (13, 5)],
+    ids=["at-capacity", "above-capacity"],
+)
+def test_extract_rejects_dimensions_at_or_above_real_capacity(width, height):
+    # Extraction shares embedding's strict limit: a 64x64 image has 64 blocks.
+    source = np.random.default_rng(0).integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    source_ok, source_png = cv2.imencode(".png", source)
+    assert source_ok
+
+    response = TestClient(app).post(
+        "/api/extract",
+        files={"image": ("embedded.png", source_png.tobytes(), "image/png")},
+        data={"wm_width": width, "wm_height": height},
+    )
+
+    assert response.status_code == 400
+    assert "溢出" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
     [(0, 1), (1, 0), (-1, 1), (1, -1), (0, 0)],
 )
 def test_extract_rejects_non_positive_dimensions_before_processing(monkeypatch, width, height):
