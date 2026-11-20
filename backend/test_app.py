@@ -100,8 +100,11 @@ def test_embed_keeps_same_named_upload_contents_separate(monkeypatch):
 
 @pytest.mark.parametrize(
     "source_shape",
-    [(64, 64, 3), (63, 64, 3), (64, 65, 3), (63, 65, 3)],
-    ids=["even-dimensions", "odd-height", "odd-width", "odd-height-and-width"],
+    [(64, 64, 3), (63, 64, 3), (64, 65, 3), (63, 65, 3), (64, 64), (63, 65)],
+    ids=[
+        "even-dimensions", "odd-height", "odd-width", "odd-height-and-width",
+        "grayscale", "grayscale-odd-dimensions",
+    ],
 )
 def test_png_watermark_round_trip_with_real_image_processing(source_shape):
     # Odd dimensions require padding for the transform, then cropping on output.
@@ -125,7 +128,8 @@ def test_png_watermark_round_trip_with_real_image_processing(source_shape):
             np.frombuffer(embedded.content, dtype=np.uint8), cv2.IMREAD_COLOR
         )
         assert embedded_image is not None
-        assert embedded_image.shape == source.shape
+        # Grayscale inputs are processed and returned as three-channel images.
+        assert embedded_image.shape == (*source.shape[:2], 3)
 
         extracted = client.post(
             "/api/extract",
