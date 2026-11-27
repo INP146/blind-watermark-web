@@ -22,6 +22,18 @@ npm run dev
 
 开发访问：<http://localhost:5173>
 
+## 后端测试
+
+在与后端相同的 Python 环境中运行：
+
+```bash
+cd backend
+python -m pip install -r requirements.txt pytest httpx
+python -m pytest -q
+```
+
+测试通过 FastAPI 的 `TestClient` 调用接口，不需要启动 Uvicorn 或 Vite。
+
 ## 单端口运行
 
 先构建前端：
